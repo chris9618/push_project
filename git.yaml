@@ -1,0 +1,50 @@
+image: alpine:latest
+
+stages:
+  - clone
+  - setup
+  - push
+
+variables:
+  SOURCE_REPO: "https://${SOURCE_TOKEN}@gitlab.com/test2.git"
+  TARGET_REPO: "https://${TARGET_TOKEN}@gitlab.com/test3/test.git"
+  TARGET_BRANCH: "develop"
+  MAIN_BRANCH: "main"
+
+before_script:
+  - apk update && apk add git
+  - export GIT_ASKPASS=echo
+
+clone_repo:
+  stage: clone
+  script:
+    - git clone $SOURCE_REPO source-repo
+  artifacts:
+    paths:
+      - source-repo
+
+setup_repo:
+  stage: setup
+  dependencies:
+    - clone_repo
+  script:
+    - cd source-repo
+    - git remote add public $TARGET_REPO
+    - git fetch public
+    - git fetch origin
+    - git checkout -b $TARGET_BRANCH public/$TARGET_BRANCH || git checkout -b $TARGET_BRANCH
+  artifacts:
+    paths:
+      - source-repo
+
+merge_and_push:
+  stage: push
+  dependencies:
+    - setup_repo
+  script:
+    - cd source-repo
+    - git merge origin/$MAIN_BRANCH --allow-unrelated-histories
+    - rm .gitlab-ci.yml # Remove the .gitlab-ci.yml file before pushing
+    - git add .
+    - git commit -m "Merge from origin main and remove .gitlab-ci.yml"
+    - git push public $TARGET_BRANCH
